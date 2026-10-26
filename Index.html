@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atmosphere — Live Weather & Air Quality</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            glass: 'rgba(255, 255, 255, 0.07)',
+            'glass-border': 'rgba(255, 255, 255, 0.12)',
+            'glass-card': 'rgba(18, 24, 38, 0.55)',
+            'glass-hover': 'rgba(255, 255, 255, 0.1)',
+          },
+          boxShadow: {
+            'glow-cyan': '0 0 35px -5px rgba(6, 182, 212, 0.35)',
+            'glow-amber': '0 0 35px -5px rgba(245, 158, 11, 0.35)',
+            'glow-indigo': '0 0 35px -5px rgba(99, 102, 241, 0.35)',
+            'glass-inset': 'inset 0 1px 1px 0 rgba(255, 255, 255, 0.15)',
+          },
+          animation: {
+            'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'float': 'float 6s ease-in-out infinite',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-8px)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.35);
+    }
+
+    .glass-panel {
+      background: rgba(17, 24, 39, 0.65);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .glass-badge {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .weather-gradient-bg {
+      transition: background 1.2s ease, filter 1.2s ease;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      pointer-events: none;
+      z-index: 0;
+      transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans selection:bg-cyan-500 selection:text-white relative overflow-x-hidden weather-gradient-bg">
+
+  <div id="orb1" class="orb w-96 h-96 -top-24 -left-20 bg-blue-600/30 opacity-70 animate-pulse-slow"></div>
+  <div id="orb2" class="orb w-[32rem] h-[32rem] top-1/3 -right-32 bg-cyan-500/25 opacity-60"></div>
+  <div id="orb3" class="orb w-80 h-80 -bottom-20 left-1/4 bg-indigo-600/25 opacity-50"></div>
+  <div class="relative z-10 flex flex-col min-h-screen">
+    
+    <header class="w-full max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-4">
+      <div class="glass-panel rounded-2xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-4">
+        
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/30 text-white font-bold">
+            <i data-lucide="cloud-sun" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent leading-none">
+              Atmosphere
+            </h1>
+            <span class="text-[11px] font-medium text-cyan-400 tracking-wider uppercase">Live Meteorological Hub</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="glass-badge rounded-xl p-1 flex items-center border border-white/10 shadow-inner">
+            <button id="btnCelsius" class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-300 bg-cyan-500 text-slate-950 shadow">
+              °C
+            </button>
+            <button id="btnFahrenheit" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition-all duration-300">
+              °F
+            </button>
+          </div>
+
+          <button id="btnGeo" title="Detect Current Location" class="glass-badge hover:bg-white/15 active:scale-95 text-slate-200 hover:text-cyan-400 p-2 rounded-xl transition duration-200 border border-white/10 flex items-center justify-center">
+            <i data-lucide="crosshair" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+  <section class="w-full max-w-4xl mx-auto px-4 sm:px-6 mt-2 relative z-30">
+    <form id="searchForm" class="relative group" autocomplete="off">
+      <div class="relative flex items-center">
+        <div class="absolute left-4 pointer-events-none text-slate-400 group-focus-within:text-cyan-400 transition-colors">
+          <i data-lucide="search" class="w-5 h-5"></i>
+        </div>
+        <input 
+          type="text" 
+          id="cityInput"
+          placeholder="Search city, region, or typo (e.g. laddakh, mumbay, tokio)..."
+          class="w-full pl-12 pr-32 py-3.5 bg-slate-900/70 backdrop-blur-xl border border-white/15 focus:border-cyan-400/80 rounded-2xl text-slate-100 placeholder-slate-400 outline-none transition-all duration-300 focus:ring-4 focus:ring-cyan-500/20 shadow-xl text-sm sm:text-base font-normal"
+          autocomplete="off"
+          spellcheck="false"
+          required
+        />
+        <div id="searchSpinner" class="hidden absolute right-24 text-cyan-400 animate-spin pointer-events-none">
+          <i data-lucide="loader-2" class="w-4 h-4"></i>
+        </div>
+        <button 
+          type="submit" 
+          class="absolute right-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center gap-1.5"
+        >
+          <span>Search</span>
+          <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+
+      <div 
+        id="suggestionsDropdown" 
+        class="hidden absolute left-0 right-0 top-full mt-2 glass-panel rounded-2xl overflow-hidden shadow-2xl border border-white/15 z-50 transition-all max-h-80 overflow-y-auto divide-y divide-white/5"
+      >
+      </div>
+    </form>
+
+    <div id="correctionBanner" class="hidden mt-3 glass-panel border border-cyan-500/30 bg-cyan-950/40 text-cyan-200 px-4 py-2.5 rounded-xl flex items-center justify-between text-xs sm:text-sm animate-fade-in shadow-lg">
+      <div class="flex items-center gap-2 overflow-hidden">
+        <i data-lucide="sparkles" class="w-4 h-4 text-cyan-400 flex-shrink-0"></i>
+        <span id="correctionText" class="truncate">Showing results for <strong>Ladakh, India</strong> (auto-corrected from 'laddakh')</span>
+      </div>
+      <button id="closeCorrection" class="text-cyan-400/80 hover:text-cyan-200 ml-2 p-1">
+        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+
+    <div class="flex items-center gap-2 mt-3 overflow-x-auto pb-1 text-xs no-scrollbar">
+      <span class="text-slate-400 whitespace-nowrap font-medium flex items-center gap-1">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i> Popular:
+      </span>
+      <div class="flex items-center gap-1.5" id="cityChipsContainer">
+        <button type="button" class="city-chip px-3 py-1 rounded-full glass-badge hover:bg-white/15 text-slate-300 hover:text-white transition cursor-pointer border border-white/10" data-city="Ladakh">Ladakh</button>
+        <button type="button" class="city-chip px-3 py-1 rounded-full glass-badge hover:bg-white/15 text-slate-300 hover:text-white transition cursor-pointer border border-white/10" data-city="London">London</button>
+        <button type="button" class="city-chip px-3 py-1 rounded-full glass-badge hover:bg-white/15 text-slate-300 hover:text-white transition cursor-pointer border border-white/10" data-city="New York">New York</button>
+        <button type="button" class="city-chip px-3 py-1 rounded-full glass-badge hover:bg-white/15 text-slate-300 hover:text-white transition cursor-pointer border border-white/10" data-city="Tokyo">Tokyo</button>
+        <button type="button" class="city-chip px-3 py-1 rounded-full glass-badge hover:bg-white/15 text-slate-300 hover:text-white transition cursor-pointer border border-white/10" data-city="Paris">Paris</button>
+        <button type="button" class="city-chip px-3 py-1 rounded-full glass-badge hover:bg-white/15 text-slate-300 hover:text-white transition cursor-pointer border border-white/10" data-city="Mumbai">Mumbai</button>
+        <button type="button" class="city-chip px-3 py-1 rounded-full glass-badge hover:bg-white/15 text-slate-300 hover:text-white transition cursor-pointer border border-white/10" data-city="Dubai">Dubai</button>
+      </div>
+    </div>
+  </section>
+
+    <div id="notificationBanner" class="w-full max-w-4xl mx-auto px-4 sm:px-6 mt-4 hidden">
+      <div id="bannerContent" class="glass-panel border-amber-500/40 bg-amber-500/10 text-amber-200 px-4 py-3 rounded-xl flex items-start justify-between gap-3 text-sm">
+        <div class="flex items-center gap-2.5">
+          <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0 text-amber-400"></i>
+          <span id="bannerText">Unable to fetch weather info.</span>
+        </div>
+        <button id="closeBanner" class="text-amber-300/80 hover:text-amber-100">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <main class="w-full max-w-7xl mx-auto px-4 sm:px-6 my-6 flex-1">
+      
+      <div id="skeletonView" class="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-pulse hidden">
+        <div class="lg:col-span-5 glass-panel rounded-3xl p-8 h-96"></div>
+        <div class="lg:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div class="glass-panel rounded-2xl p-5 h-40"></div>
+          <div class="glass-panel rounded-2xl p-5 h-40"></div>
+          <div class="glass-panel rounded-2xl p-5 h-40"></div>
+          <div class="glass-panel rounded-2xl p-5 h-40"></div>
+          <div class="glass-panel rounded-2xl p-5 h-40"></div>
+          <div class="glass-panel rounded-2xl p-5 h-40"></div>
+        </div>
+      </div>
+
+      <div id="dashboardView" class="grid grid-cols-1 lg:grid-cols-12 gap-6 transition-all duration-500">
+        
+        <div class="lg:col-span-5 flex flex-col">
+          <div class="glass-panel rounded-3xl p-6 sm:p-8 flex flex-col justify-between h-full relative overflow-hidden group">
+            
+            <div class="absolute -right-16 -top-16 w-48 h-48 bg-white/5 rounded-full blur-2xl pointer-events-none"></div>
+
+            <div>
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="map-pin" class="w-5 h-5 text-cyan-400 flex-shrink-0"></i>
+                    <h2 id="cityName" class="text-2xl sm:text-3xl font-bold tracking-tight text-white drop-shadow-sm">London</h2>
+                  </div>
+                  <p id="regionCountry" class="text-sm font-medium text-slate-300 mt-1 pl-7">City of London, United Kingdom</p>
+                </div>
+
+                <div id="dayNightBadge" class="glass-badge px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 text-cyan-300">
+                  <i data-lucide="sun" class="w-3.5 h-3.5"></i>
+                  <span id="dayNightText">Day</span>
+                </div>
+              </div>
+
+              <div class="mt-4 flex flex-wrap items-center gap-y-1 gap-x-4 text-xs sm:text-sm text-slate-400 pl-7">
+                <span class="flex items-center gap-1.5">
+                  <i data-lucide="calendar" class="w-4 h-4 text-slate-500"></i>
+                  <span id="localDate">Monday, 26 Oct</span>
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <i data-lucide="clock" class="w-4 h-4 text-slate-500"></i>
+                  <span id="localTime">16:45 PM</span>
+                </span>
+              </div>
+            </div>
+
+            <div class="my-8 flex items-center justify-between">
+              <div>
+                <div class="flex items-baseline">
+                  <span id="mainTemp" class="text-6xl sm:text-7xl font-extrabold tracking-tighter text-white drop-shadow-md">18</span>
+                  <span id="mainTempUnit" class="text-3xl sm:text-4xl font-light text-cyan-400 ml-1">°C</span>
+                </div>
+                <p class="text-sm text-slate-400 mt-1.5 flex items-center gap-1">
+                  <span>Feels like:</span>
+                  <strong id="feelsLikeTemp" class="text-slate-200 font-semibold">17°C</strong>
+                </p>
+              </div>
+
+              <div class="flex flex-col items-center">
+                <div class="w-24 h-24 sm:w-28 sm:h-28 relative flex items-center justify-center animate-float">
+                  <img id="conditionIcon" src="https://cdn.weatherapi.com/weather/64x64/day/116.png" alt="Condition" class="w-full h-full object-contain filter drop-shadow-lg" />
+                </div>
+                <span id="conditionText" class="text-sm sm:text-base font-semibold text-slate-200 text-center tracking-wide max-w-[140px] leading-tight">
+                  Partly Cloudy
+                </span>
+              </div>
+            </div>
+
+            <div class="pt-5 border-t border-white/10 flex items-center justify-between text-xs text-slate-300">
+              <div class="flex items-center gap-2">
+                <i data-lucide="wind" class="w-4 h-4 text-cyan-400"></i>
+                <span>Wind gust: <span id="windGust" class="font-medium text-white">14 km/h</span></span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-slate-400">Station live</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="lg:col-span-7 flex flex-col gap-6">
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            
+            <div class="glass-panel rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-cyan-500/40 transition-all duration-300 group">
+              <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold uppercase tracking-wider">Humidity</span>
+                <div class="p-2 rounded-xl bg-blue-500/10 text-blue-400 group-hover:scale-110 transition-transform">
+                  <i data-lucide="droplets" class="w-4 h-4"></i>
+                </div>
+              </div>
+              <div>
+                <div class="text-2xl font-bold text-white tracking-tight" id="valHumidity">72%</div>
+                <div class="w-full bg-slate-800/80 rounded-full h-1.5 mt-3 overflow-hidden">
+                  <div id="barHumidity" class="bg-gradient-to-r from-cyan-400 to-blue-500 h-1.5 rounded-full transition-all duration-500" style="width: 72%"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-cyan-500/40 transition-all duration-300 group">
+              <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold uppercase tracking-wider">Wind</span>
+                <div class="p-2 rounded-xl bg-teal-500/10 text-teal-400 group-hover:scale-110 transition-transform">
+                  <i data-lucide="wind" class="w-4 h-4"></i>
+                </div>
+              </div>
+              <div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-2xl font-bold text-white tracking-tight" id="valWind">15</span>
+                  <span class="text-xs font-medium text-slate-400" id="unitWind">km/h</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-2 flex items-center gap-1.5 font-medium">
+                  <i data-lucide="compass" class="w-3.5 h-3.5 text-cyan-400"></i>
+                  <span id="valWindDir">NW (310°)</span>
+                </p>
+              </div>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-cyan-500/40 transition-all duration-300 group">
+              <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold uppercase tracking-wider">UV Index</span>
+                <div class="p-2 rounded-xl bg-amber-500/10 text-amber-400 group-hover:scale-110 transition-transform">
+                  <i data-lucide="sun-medium" class="w-4 h-4"></i>
+                </div>
+              </div>
+              <div>
+                <div class="flex items-baseline gap-2">
+                  <span class="text-2xl font-bold text-white tracking-tight" id="valUV">4</span>
+                  <span id="badgeUV" class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">Moderate</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-2 leading-tight">Sun protection recommended at peak midday</p>
+              </div>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-cyan-500/40 transition-all duration-300 group">
+              <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold uppercase tracking-wider">Pressure</span>
+                <div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 group-hover:scale-110 transition-transform">
+                  <i data-lucide="gauge" class="w-4 h-4"></i>
+                </div>
+              </div>
+              <div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-2xl font-bold text-white tracking-tight" id="valPressure">1014</span>
+                  <span class="text-xs font-medium text-slate-400" id="unitPressure">mb</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-2" id="valPressureCondition">Stable atmospheric gradient</p>
+              </div>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-cyan-500/40 transition-all duration-300 group">
+              <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold uppercase tracking-wider">Visibility</span>
+                <div class="p-2 rounded-xl bg-purple-500/10 text-purple-400 group-hover:scale-110 transition-transform">
+                  <i data-lucide="eye" class="w-4 h-4"></i>
+                </div>
+              </div>
+              <div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-2xl font-bold text-white tracking-tight" id="valVisibility">10</span>
+                  <span class="text-xs font-medium text-slate-400" id="unitVisibility">km</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-2" id="valVisibilityText">Clear horizon line</p>
+              </div>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-cyan-500/40 transition-all duration-300 group">
+              <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold uppercase tracking-wider">Cloud Cover</span>
+                <div class="p-2 rounded-xl bg-slate-500/10 text-slate-300 group-hover:scale-110 transition-transform">
+                  <i data-lucide="cloud" class="w-4 h-4"></i>
+                </div>
+              </div>
+              <div>
+                <div class="text-2xl font-bold text-white tracking-tight" id="valCloud">45%</div>
+                <div class="w-full bg-slate-800/80 rounded-full h-1.5 mt-3 overflow-hidden">
+                  <div id="barCloud" class="bg-gradient-to-r from-slate-400 to-indigo-400 h-1.5 rounded-full transition-all duration-500" style="width: 45%"></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="glass-panel rounded-3xl p-6 sm:p-7 relative overflow-hidden">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+              <div class="flex items-center gap-3">
+                <div class="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  <i data-lucide="shield-check" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-white text-base">Air Quality Index (AQI)</h3>
+                  <p class="text-xs text-slate-400">US-EPA Standard Air Health Assessment</p>
+                </div>
+              </div>
+
+              <!-- AQI Status Pill -->
+              <div class="flex items-center gap-2 self-start sm:self-auto">
+                <span id="aqiBadge" class="px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm">
+                  1 - Good
+                </span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-5">
+              
+              <div class="bg-slate-900/40 border border-white/5 p-3 rounded-2xl flex flex-col justify-between">
+                <span class="text-slate-400 text-xs font-semibold">PM2.5</span>
+                <div class="mt-2">
+                  <span id="aqiPM25" class="text-lg font-bold text-white">8.4</span>
+                  <span class="text-[10px] text-slate-400 block">µg/m³</span>
+                </div>
+              </div>
+
+              <div class="bg-slate-900/40 border border-white/5 p-3 rounded-2xl flex flex-col justify-between">
+                <span class="text-slate-400 text-xs font-semibold">PM10</span>
+                <div class="mt-2">
+                  <span id="aqiPM10" class="text-lg font-bold text-white">14.1</span>
+                  <span class="text-[10px] text-slate-400 block">µg/m³</span>
+                </div>
+              </div>
+
+              <div class="bg-slate-900/40 border border-white/5 p-3 rounded-2xl flex flex-col justify-between">
+                <span class="text-slate-400 text-xs font-semibold">CO</span>
+                <div class="mt-2">
+                  <span id="aqiCO" class="text-lg font-bold text-white">210</span>
+                  <span class="text-[10px] text-slate-400 block">µg/m³</span>
+                </div>
+              </div>
+
+              <div class="bg-slate-900/40 border border-white/5 p-3 rounded-2xl flex flex-col justify-between">
+                <span class="text-slate-400 text-xs font-semibold">O₃ (Ozone)</span>
+                <div class="mt-2">
+                  <span id="aqiO3" class="text-lg font-bold text-white">56.2</span>
+                  <span class="text-[10px] text-slate-400 block">µg/m³</span>
+                </div>
+              </div>
+
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-white/5 text-xs text-slate-400 flex items-center gap-2">
+              <i data-lucide="info" class="w-4 h-4 text-cyan-400 flex-shrink-0"></i>
+              <span id="aqiAdviceText">Air quality is ideal for outdoor sports and recreational activities.</span>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+
+    <footer class="w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 mt-auto text-center text-xs text-slate-500">
+      <p>Data provided in real-time via WeatherAPI • Atmospheric Station Engine</p>
+    </footer>
+
+  </div>
+
+  <script>
+
+    const API_KEY = '826d2d3145f04358a35161412262610';
+    let currentUnit = 'C'; // 'C' or 'F'
+    let currentWeatherData = null;
+    let debounceTimer = null;
+    let selectedDropdownIndex = -1;
+    let activeSuggestions = [];
+
+
+    const KNOWN_LOCATIONS = [
+      "Ladakh", "Leh", "Kashmir", "Srinagar", "Manali", "Shimla", "Dharamshala",
+      "Indore", "Bhopal", "Mumbai", "Delhi", "Bengaluru", "Bangalore", "Hyderabad",
+      "Kolkata", "Chennai", "Pune", "Ahmedabad", "Jaipur", "Udaipur", "Goa",
+      "London", "Paris", "New York", "Tokyo", "Dubai", "Singapore", "Sydney",
+      "Toronto", "Berlin", "Rome", "Amsterdam", "San Francisco", "Los Angeles",
+      "Barcelona", "Seoul", "Bangkok", "Istanbul", "Zurich", "Hong Kong", "Cairo"
+    ];
+
+    const searchForm = document.getElementById('searchForm');
+    const cityInput = document.getElementById('cityInput');
+    const searchSpinner = document.getElementById('searchSpinner');
+    const suggestionsDropdown = document.getElementById('suggestionsDropdown');
+    const correctionBanner = document.getElementById('correctionBanner');
+    const correctionText = document.getElementById('correctionText');
+    const closeCorrection = document.getElementById('closeCorrection');
+    const btnCelsius = document.getElementById('btnCelsius');
+    const btnFahrenheit = document.getElementById('btnFahrenheit');
+    const btnGeo = document.getElementById('btnGeo');
+    const notificationBanner = document.getElementById('notificationBanner');
+    const bannerText = document.getElementById('bannerText');
+    const closeBanner = document.getElementById('closeBanner');
+    const skeletonView = document.getElementById('skeletonView');
+    const dashboardView = document.getElementById('dashboardView');
+    const cityChips = document.querySelectorAll('.city-chip');
+    const cityNameEl = document.getElementById('cityName');
+    const regionCountryEl = document.getElementById('regionCountry');
+    const dayNightBadgeEl = document.getElementById('dayNightBadge');
+    const dayNightTextEl = document.getElementById('dayNightText');
+    const localDateEl = document.getElementById('localDate');
+    const localTimeEl = document.getElementById('localTime');
+    const mainTempEl = document.getElementById('mainTemp');
+    const mainTempUnitEl = document.getElementById('mainTempUnit');
+    const feelsLikeTempEl = document.getElementById('feelsLikeTemp');
+    const conditionIconEl = document.getElementById('conditionIcon');
+    const conditionTextEl = document.getElementById('conditionText');
+    const windGustEl = document.getElementById('windGust');
+    const valHumidityEl = document.getElementById('valHumidity');
+    const barHumidityEl = document.getElementById('barHumidity');
+    const valWindEl = document.getElementById('valWind');
+    const unitWindEl = document.getElementById('unitWind');
+    const valWindDirEl = document.getElementById('valWindDir');
+    const valUVEl = document.getElementById('valUV');
+    const badgeUVEl = document.getElementById('badgeUV');
+    const valPressureEl = document.getElementById('valPressure');
+    const unitPressureEl = document.getElementById('unitPressure');
+    const valPressureConditionEl = document.getElementById('valPressureCondition');
+    const valVisibilityEl = document.getElementById('valVisibility');
+    const unitVisibilityEl = document.getElementById('unitVisibility');
+    const valVisibilityTextEl = document.getElementById('valVisibilityText');
+    const valCloudEl = document.getElementById('valCloud');
+    const barCloudEl = document.getElementById('barCloud');
+    const aqiBadgeEl = document.getElementById('aqiBadge');
+    const aqiPM25El = document.getElementById('aqiPM25');
+    const aqiPM10El = document.getElementById('aqiPM10');
+    const aqiCOEl = document.getElementById('aqiCO');
+    const aqiO3El = document.getElementById('aqiO3');
+    const aqiAdviceTextEl = document.getElementById('aqiAdviceText');
+    const orb1 = document.getElementById('orb1');
+    const orb2 = document.getElementById('orb2');
+    const orb3 = document.getElementById('orb3');
+
+    function refreshIcons() {
+      if (window.lucide) {
+        lucide.createIcons();
+      }
+    }
+
+    function levenshteinDistance(s1, s2) {
+      s1 = (s1 || '').toLowerCase().trim();
+      s2 = (s2 || '').toLowerCase().trim();
+      const m = s1.length;
+      const n = s2.length;
+      const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+
+      for (let i = 0; i <= m; i++) dp[i][0] = i;
+      for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+      for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+          const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+          dp[i][j] = Math.min(
+            dp[i - 1][j] + 1,       
+            dp[i][j - 1] + 1,       
+            dp[i - 1][j - 1] + cost 
+          );
+        }
+      }
+      return dp[m][n];
+    }
+
+    function findBestFuzzyMatch(rawQuery) {
+      const q = rawQuery.toLowerCase().trim();
+      if (!q) return null;
+
+      let bestMatch = null;
+      let minDistance = Infinity;
+
+      for (const loc of KNOWN_LOCATIONS) {
+        const dist = levenshteinDistance(q, loc);
+        const maxThreshold = Math.max(2, Math.floor(loc.length * 0.45));
+        if (dist <= maxThreshold && dist < minDistance) {
+          minDistance = dist;
+          bestMatch = loc;
+        }
+      }
+      return bestMatch;
+    }
+
+    function reduceRepeatedChars(str) {
+      return str.replace(/(.)\1+/g, '$1');
+    }
+
+    function showCorrectionBanner(correctedName, originalQuery) {
+      correctionText.innerHTML = `Showing results for <strong>${correctedName}</strong> (understood from '<em>${originalQuery}</em>')`;
+      correctionBanner.classList.remove('hidden');
+      refreshIcons();
+    }
+
+    function hideCorrectionBanner() {
+      correctionBanner.classList.add('hidden');
+    }
+
+    closeCorrection.addEventListener('click', hideCorrectionBanner);
+
+    function showError(message) {
+      bannerText.textContent = message;
+      notificationBanner.classList.remove('hidden');
+      refreshIcons();
+    }
+
+    function hideError() {
+      notificationBanner.classList.add('hidden');
+    }
+
+    closeBanner.addEventListener('click', hideError);
+
+    async function fetchSearchSuggestions(query) {
+      if (!query || query.trim().length < 2) {
+        hideDropdown();
+        return [];
+      }
+
+      searchSpinner.classList.remove('hidden');
+      try {
+        const res = await fetch(`https://api.weatherapi.com/v1/search.json?key=${API_KEY}&q=${encodeURIComponent(query)}`);
+        if (!res.ok) throw new Error('Search failed');
+        const list = await res.json();
+        return Array.isArray(list) ? list : [];
+      } catch (err) {
+        return [];
+      } finally {
+        searchSpinner.classList.add('hidden');
+      }
+    }
+
+    function renderSuggestions(list, rawInput) {
+      suggestionsDropdown.innerHTML = '';
+      activeSuggestions = list;
+      selectedDropdownIndex = -1;
+
+      if (!list || list.length === 0) {
+
+        const fuzzyOption = findBestFuzzyMatch(rawInput);
+        if (fuzzyOption) {
+          const item = document.createElement('div');
+          item.className = 'px-4 py-3 hover:bg-white/10 cursor-pointer flex items-center justify-between transition-colors text-xs sm:text-sm';
+          item.innerHTML = `
+            <div class="flex items-center gap-3">
+              <i data-lucide="sparkles" class="w-4 h-4 text-cyan-400"></i>
+              <div>
+                <span class="font-semibold text-white">Did you mean "${fuzzyOption}"?</span>
+                <p class="text-xs text-slate-400">Click to fetch weather for this destination</p>
+              </div>
+            </div>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
+          `;
+          item.addEventListener('click', () => {
+            hideDropdown();
+            cityInput.value = fuzzyOption;
+            executeIntelligentSearch(fuzzyOption, rawInput);
+          });
+          suggestionsDropdown.appendChild(item);
+          suggestionsDropdown.classList.remove('hidden');
+          refreshIcons();
+          return;
+        }
+        hideDropdown();
+        return;
+      }
+
+      list.slice(0, 6).forEach((item, idx) => {
+        const optionEl = document.createElement('div');
+        optionEl.className = 'px-4 py-3 hover:bg-white/10 cursor-pointer flex items-center justify-between transition-colors text-xs sm:text-sm';
+        optionEl.setAttribute('data-index', idx);
+
+        const subText = [item.region, item.country].filter(Boolean).join(', ');
+        optionEl.innerHTML = `
+          <div class="flex items-center gap-3 overflow-hidden">
+            <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 flex-shrink-0">
+              <i data-lucide="map-pin" class="w-4 h-4"></i>
+            </div>
+            <div class="truncate">
+              <span class="font-semibold text-white block truncate">${item.name}</span>
+              <span class="text-xs text-slate-400 block truncate">${subText}</span>
+            </div>
+          </div>
+          <span class="text-[11px] font-mono text-slate-500 hidden sm:inline-block">${item.lat.toFixed(1)}°, ${item.lon.toFixed(1)}°</span>
+        `;
+
+        optionEl.addEventListener('click', () => {
+          hideDropdown();
+          cityInput.value = item.name;
+          executeIntelligentSearch(item.name);
+        });
+
+        suggestionsDropdown.appendChild(optionEl);
+      });
+
+      suggestionsDropdown.classList.remove('hidden');
+      refreshIcons();
+    }
+
+    function hideDropdown() {
+      suggestionsDropdown.classList.add('hidden');
+      suggestionsDropdown.innerHTML = '';
+      activeSuggestions = [];
+      selectedDropdownIndex = -1;
+    }
+
+    function updateDropdownSelection() {
+      const items = suggestionsDropdown.querySelectorAll('[data-index]');
+      items.forEach((el, index) => {
+        if (index === selectedDropdownIndex) {
+          el.classList.add('bg-white/15', 'border-l-2', 'border-cyan-400');
+          el.scrollIntoView({ block: 'nearest' });
+        } else {
+          el.classList.remove('bg-white/15', 'border-l-2', 'border-cyan-400');
+        }
+      });
+    }
+
+    cityInput.addEventListener('input', (e) => {
+      const val = e.target.value.trim();
+      clearTimeout(debounceTimer);
+
+      if (val.length < 2) {
+        hideDropdown();
+        return;
+      }
+
+      debounceTimer = setTimeout(async () => {
+        const suggestions = await fetchSearchSuggestions(val);
+        renderSuggestions(suggestions, val);
+      }, 250);
+    });
+
+    cityInput.addEventListener('keydown', (e) => {
+      const items = suggestionsDropdown.querySelectorAll('[data-index]');
+      if (suggestionsDropdown.classList.contains('hidden') || items.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedDropdownIndex = (selectedDropdownIndex + 1) % items.length;
+        updateDropdownSelection();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedDropdownIndex = (selectedDropdownIndex - 1 + items.length) % items.length;
+        updateDropdownSelection();
+      } else if (e.key === 'Enter') {
+        if (selectedDropdownIndex >= 0 && activeSuggestions[selectedDropdownIndex]) {
+          e.preventDefault();
+          const target = activeSuggestions[selectedDropdownIndex];
+          cityInput.value = target.name;
+          hideDropdown();
+          executeIntelligentSearch(target.name);
+        }
+      } else if (e.key === 'Escape') {
+        hideDropdown();
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!searchForm.contains(e.target)) {
+        hideDropdown();
+      }
+    });
+
+    async function executeIntelligentSearch(query, originalRawQuery = null) {
+      if (!query || query.trim() === '') return;
+      const rawTerm = (originalRawQuery || query).trim();
+      const directTerm = query.trim();
+
+      hideDropdown();
+      hideError();
+      skeletonView.classList.remove('hidden');
+      dashboardView.classList.add('hidden');
+
+      try {
+
+        let currentUrl = `https://api.weatherapi.com/v1/current.json?key=${API_KEY}&q=${encodeURIComponent(directTerm)}&aqi=yes`;
+        let response = await fetch(currentUrl);
+
+        if (response.ok) {
+          const data = await response.json();
+          currentWeatherData = data;
+          renderWeather(data);
+          if (originalRawQuery && originalRawQuery.toLowerCase() !== data.location.name.toLowerCase()) {
+            showCorrectionBanner(`${data.location.name}, ${data.location.country}`, originalRawQuery);
+          } else {
+            hideCorrectionBanner();
+          }
+          return;
+        }
+
+        let searchList = await fetchSearchSuggestions(directTerm);
+
+        if (!searchList || searchList.length === 0) {
+          const deDuplicated = reduceRepeatedChars(directTerm);
+          if (deDuplicated !== directTerm) {
+            searchList = await fetchSearchSuggestions(deDuplicated);
+          }
+        }
+
+        if (!searchList || searchList.length === 0) {
+          const fuzzyBest = findBestFuzzyMatch(directTerm);
+          if (fuzzyBest) {
+            searchList = await fetchSearchSuggestions(fuzzyBest);
+          }
+        }
+
+        if (searchList && searchList.length > 0) {
+          const resolved = searchList[0];
+          const resolvedUrl = `https://api.weatherapi.com/v1/current.json?key=${API_KEY}&q=${encodeURIComponent(resolved.name)}&aqi=yes`;
+          const resolvedRes = await fetch(resolvedUrl);
+
+          if (resolvedRes.ok) {
+            const data = await resolvedRes.json();
+            currentWeatherData = data;
+            renderWeather(data);
+            showCorrectionBanner(`${data.location.name}, ${data.location.country}`, rawTerm);
+            return;
+          }
+        }
+
+        throw new Error(`Could not locate weather data for "${rawTerm}". Check the spelling or try selecting from popular locations.`);
+
+      } catch (err) {
+        showError(err.message || 'Error retrieving weather details.');
+      } finally {
+        skeletonView.classList.add('hidden');
+        dashboardView.classList.remove('hidden');
+      }
+    }
+
+    function formatLocalDateTime(localtimeStr) {
+      try {
+        const parts = localtimeStr.split(' ');
+        const datePart = parts[0];
+        const timePart = parts[1];
+
+        const dateObj = new Date(datePart + 'T' + timePart);
+        if (isNaN(dateObj.getTime())) {
+          return { date: datePart, time: timePart };
+        }
+
+        const dateFormatted = dateObj.toLocaleDateString('en-US', {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short'
+        });
+
+        let [hours, minutes] = timePart.split(':');
+        hours = parseInt(hours, 10);
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        const timeFormatted = `${hours}:${minutes} ${ampm}`;
+
+        return { date: dateFormatted, time: timeFormatted };
+      } catch (e) {
+        return { date: 'Today', time: localtimeStr };
+      }
+    }
+
+    function applyWeatherAesthetics(condText, isDay) {
+      const text = condText.toLowerCase();
+
+      if (!isDay) {
+        orb1.className = 'orb w-96 h-96 -top-24 -left-20 bg-indigo-900/40 opacity-70 animate-pulse-slow';
+        orb2.className = 'orb w-[32rem] h-[32rem] top-1/3 -right-32 bg-slate-800/40 opacity-60';
+        orb3.className = 'orb w-80 h-80 -bottom-20 left-1/4 bg-blue-950/50 opacity-50';
+      } else if (text.includes('sunny') || text.includes('clear')) {
+        orb1.className = 'orb w-96 h-96 -top-24 -left-20 bg-amber-500/25 opacity-70 animate-pulse-slow';
+        orb2.className = 'orb w-[32rem] h-[32rem] top-1/3 -right-32 bg-cyan-500/25 opacity-60';
+        orb3.className = 'orb w-80 h-80 -bottom-20 left-1/4 bg-orange-500/20 opacity-50';
+      } else if (text.includes('rain') || text.includes('drizzle') || text.includes('shower')) {
+        orb1.className = 'orb w-96 h-96 -top-24 -left-20 bg-blue-700/35 opacity-70 animate-pulse-slow';
+        orb2.className = 'orb w-[32rem] h-[32rem] top-1/3 -right-32 bg-teal-800/30 opacity-60';
+        orb3.className = 'orb w-80 h-80 -bottom-20 left-1/4 bg-slate-700/40 opacity-50';
+      } else if (text.includes('thunder') || text.includes('storm')) {
+        orb1.className = 'orb w-96 h-96 -top-24 -left-20 bg-purple-900/40 opacity-70 animate-pulse-slow';
+        orb2.className = 'orb w-[32rem] h-[32rem] top-1/3 -right-32 bg-indigo-900/40 opacity-60';
+        orb3.className = 'orb w-80 h-80 -bottom-20 left-1/4 bg-cyan-900/30 opacity-50';
+      } else if (text.includes('snow') || text.includes('blizzard') || text.includes('ice') || text.includes('sleet')) {
+        orb1.className = 'orb w-96 h-96 -top-24 -left-20 bg-sky-300/25 opacity-70 animate-pulse-slow';
+        orb2.className = 'orb w-[32rem] h-[32rem] top-1/3 -right-32 bg-blue-400/20 opacity-60';
+        orb3.className = 'orb w-80 h-80 -bottom-20 left-1/4 bg-indigo-300/20 opacity-50';
+      } else {
+        orb1.className = 'orb w-96 h-96 -top-24 -left-20 bg-slate-600/30 opacity-70 animate-pulse-slow';
+        orb2.className = 'orb w-[32rem] h-[32rem] top-1/3 -right-32 bg-cyan-700/20 opacity-60';
+        orb3.className = 'orb w-80 h-80 -bottom-20 left-1/4 bg-blue-800/25 opacity-50';
+      }
+    }
+
+    function mapAQI(epaIndex) {
+      switch (epaIndex) {
+        case 1:
+          return {
+            label: '1 - Good',
+            colorClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+            advice: 'Air quality is satisfactory; air pollution poses little or no health risk.'
+          };
+        case 2:
+          return {
+            label: '2 - Moderate',
+            colorClass: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+            advice: 'Air quality is acceptable. Sensitive individuals should consider reducing heavy exertion.'
+          };
+        case 3:
+          return {
+            label: '3 - Sensitive Groups',
+            colorClass: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+            advice: 'Members of sensitive groups may experience health effects. General public less affected.'
+          };
+        case 4:
+          return {
+            label: '4 - Unhealthy',
+            colorClass: 'bg-red-500/20 text-red-300 border-red-500/40',
+            advice: 'Everyone may begin to experience health effects. Sensitive individuals may experience serious effects.'
+          };
+        case 5:
+          return {
+            label: '5 - Very Unhealthy',
+            colorClass: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+            advice: 'Health alert: The risk of health effects is increased for everyone.'
+          };
+        case 6:
+          return {
+            label: '6 - Hazardous',
+            colorClass: 'bg-rose-950/60 text-rose-300 border-rose-600',
+            advice: 'Emergency conditions! The entire population is more likely to be severely affected.'
+          };
+        default:
+          return {
+            label: 'Normal',
+            colorClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+            advice: 'Standard baseline ambient atmosphere.'
+          };
+      }
+    }
+
+    function renderWeather(data) {
+      const loc = data.location;
+      const cur = data.current;
+
+      cityNameEl.textContent = loc.name;
+      const regionText = loc.region ? `${loc.region}, ${loc.country}` : loc.country;
+      regionCountryEl.textContent = regionText;
+
+      const { date, time } = formatLocalDateTime(loc.localtime);
+      localDateEl.textContent = date;
+      localTimeEl.textContent = time;
+
+      const isDay = cur.is_day === 1;
+      dayNightTextEl.textContent = isDay ? 'Day' : 'Night';
+      dayNightBadgeEl.innerHTML = `
+        <i data-lucide="${isDay ? 'sun' : 'moon'}" class="w-3.5 h-3.5 ${isDay ? 'text-amber-400' : 'text-indigo-300'}"></i>
+        <span>${isDay ? 'Day' : 'Night'}</span>
+      `;
+
+      conditionTextEl.textContent = cur.condition.text;
+      let iconUrl = cur.condition.icon;
+      if (iconUrl.startsWith('//')) iconUrl = 'https:' + iconUrl;
+      conditionIconEl.src = iconUrl;
+      conditionIconEl.alt = cur.condition.text;
+
+      updateTemperatures();
+      applyWeatherAesthetics(cur.condition.text, isDay);
+
+      valHumidityEl.textContent = `${cur.humidity}%`;
+      barHumidityEl.style.width = `${cur.humidity}%`;
+
+      if (currentUnit === 'C') {
+        valWindEl.textContent = Math.round(cur.wind_kph);
+        unitWindEl.textContent = 'km/h';
+        windGustEl.textContent = `${Math.round(cur.gust_kph || cur.wind_kph)} km/h`;
+      } else {
+        valWindEl.textContent = Math.round(cur.wind_mph);
+        unitWindEl.textContent = 'mph';
+        windGustEl.textContent = `${Math.round(cur.gust_mph || cur.wind_mph)} mph`;
+      }
+      valWindDirEl.textContent = `${cur.wind_dir} (${cur.wind_degree}°)`;
+
+      const uv = cur.uv;
+      valUVEl.textContent = uv;
+      let uvLabel = 'Low';
+      let uvClass = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+      if (uv >= 3 && uv < 6) {
+        uvLabel = 'Moderate';
+        uvClass = 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+      } else if (uv >= 6 && uv < 8) {
+        uvLabel = 'High';
+        uvClass = 'bg-orange-500/20 text-orange-300 border-orange-500/30';
+      } else if (uv >= 8) {
+        uvLabel = 'Very High / Extreme';
+        uvClass = 'bg-red-500/20 text-red-300 border-red-500/30';
+      }
+      badgeUVEl.className = `text-[11px] font-bold px-2 py-0.5 rounded-md border ${uvClass}`;
+      badgeUVEl.textContent = uvLabel;
+
+      if (currentUnit === 'C') {
+        valPressureEl.textContent = Math.round(cur.pressure_mb);
+        unitPressureEl.textContent = 'mb';
+      } else {
+        valPressureEl.textContent = cur.pressure_in.toFixed(2);
+        unitPressureEl.textContent = 'inHg';
+      }
+      valPressureConditionEl.textContent = cur.pressure_mb > 1013 ? 'High pressure region' : 'Low pressure trough';
+
+      if (currentUnit === 'C') {
+        valVisibilityEl.textContent = cur.vis_km;
+        unitVisibilityEl.textContent = 'km';
+        valVisibilityTextEl.textContent = cur.vis_km >= 10 ? 'Optimal clarity' : 'Reduced visibility';
+      } else {
+        valVisibilityEl.textContent = cur.vis_miles;
+        unitVisibilityEl.textContent = 'miles';
+        valVisibilityTextEl.textContent = cur.vis_miles >= 6 ? 'Optimal clarity' : 'Reduced visibility';
+      }
+
+      valCloudEl.textContent = `${cur.cloud}%`;
+      barCloudEl.style.width = `${cur.cloud}%`;
+
+      if (cur.air_quality) {
+        const epaIndex = cur.air_quality['us-epa-index'] || 1;
+        const aqiInfo = mapAQI(epaIndex);
+
+        aqiBadgeEl.className = `px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase border shadow-sm ${aqiInfo.colorClass}`;
+        aqiBadgeEl.textContent = aqiInfo.label;
+        aqiAdviceTextEl.textContent = aqiInfo.advice;
+
+        aqiPM25El.textContent = cur.air_quality.pm2_5 ? cur.air_quality.pm2_5.toFixed(1) : '—';
+        aqiPM10El.textContent = cur.air_quality.pm10 ? cur.air_quality.pm10.toFixed(1) : '—';
+        aqiCOEl.textContent = cur.air_quality.co ? Math.round(cur.air_quality.co) : '—';
+        aqiO3El.textContent = cur.air_quality.o3 ? cur.air_quality.o3.toFixed(1) : '—';
+      }
+
+      refreshIcons();
+    }
+
+    function updateTemperatures() {
+      if (!currentWeatherData) return;
+      const cur = currentWeatherData.current;
+
+      if (currentUnit === 'C') {
+        mainTempEl.textContent = Math.round(cur.temp_c);
+        mainTempUnitEl.textContent = '°C';
+        feelsLikeTempEl.textContent = `${Math.round(cur.feelslike_c)}°C`;
+        valWindEl.textContent = Math.round(cur.wind_kph);
+        unitWindEl.textContent = 'km/h';
+        windGustEl.textContent = `${Math.round(cur.gust_kph || cur.wind_kph)} km/h`;
+        valPressureEl.textContent = Math.round(cur.pressure_mb);
+        unitPressureEl.textContent = 'mb';
+        valVisibilityEl.textContent = cur.vis_km;
+        unitVisibilityEl.textContent = 'km';
+      } else {
+        mainTempEl.textContent = Math.round(cur.temp_f);
+        mainTempUnitEl.textContent = '°F';
+        feelsLikeTempEl.textContent = `${Math.round(cur.feelslike_f)}°F`;
+        valWindEl.textContent = Math.round(cur.wind_mph);
+        unitWindEl.textContent = 'mph';
+        windGustEl.textContent = `${Math.round(cur.gust_mph || cur.wind_mph)} mph`;
+        valPressureEl.textContent = cur.pressure_in.toFixed(2);
+        unitPressureEl.textContent = 'inHg';
+        valVisibilityEl.textContent = cur.vis_miles;
+        unitVisibilityEl.textContent = 'miles';
+      }
+    }
+
+    btnCelsius.addEventListener('click', () => {
+      if (currentUnit === 'C') return;
+      currentUnit = 'C';
+      btnCelsius.className = 'px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-300 bg-cyan-500 text-slate-950 shadow';
+      btnFahrenheit.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition-all duration-300';
+      updateTemperatures();
+    });
+
+    btnFahrenheit.addEventListener('click', () => {
+      if (currentUnit === 'F') return;
+      currentUnit = 'F';
+      btnFahrenheit.className = 'px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-300 bg-cyan-500 text-slate-950 shadow';
+      btnCelsius.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition-all duration-300';
+      updateTemperatures();
+    });
+
+    searchForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const val = cityInput.value.trim();
+      if (val) {
+        executeIntelligentSearch(val, val);
+      }
+    });
+
+    cityChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        const city = chip.dataset.city;
+        cityInput.value = city;
+        executeIntelligentSearch(city);
+      });
+    });
+
+    btnGeo.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        showError('Geolocation is not supported by your browser.');
+        return;
+      }
+      btnGeo.classList.add('animate-spin');
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          btnGeo.classList.remove('animate-spin');
+          const coords = `${position.coords.latitude},${position.coords.longitude}`;
+          executeIntelligentSearch(coords);
+        },
+        (error) => {
+          btnGeo.classList.remove('animate-spin');
+          showError('Unable to retrieve your current location. Please type a city name.');
+        },
+        { timeout: 10000 }
+      );
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      refreshIcons();
+      executeIntelligentSearch('Ladakh');
+    });
+  </script>
+</body>
+</html>
